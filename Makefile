@@ -17,31 +17,31 @@ help:
 	@echo "  make clean         - remove binary"
 
 docs:
-	GOWORK=off go run ./cmd/openai-mock-server help --all
+	go run ./cmd/openai-mock-server help --all
 
 fmt:
-	GOWORK=off go fmt ./...
+	go fmt ./...
 
 vet:
-	GOWORK=off go vet ./...
+	go vet ./...
 
 build:
-	GOWORK=off go build -o $(APP) ./cmd/openai-mock-server
+	go build -o $(APP) ./cmd/openai-mock-server
 
 run:
 	@echo "Starting server with $(MOCK_SERVER_CONFIG)"
-	GOWORK=off MOCK_SERVER_CONFIG=$(MOCK_SERVER_CONFIG) go run ./cmd/openai-mock-server serve
+	MOCK_SERVER_CONFIG=$(MOCK_SERVER_CONFIG) go run ./cmd/openai-mock-server serve
 
 test: test-chat test-responses test-stream
 
 test-chat:
-	python3 test_mock_server.py || true
+	python3 tests/python/test_mock_server.py || true
 
 test-responses:
-	python3 test_responses_api.py || true
+	python3 tests/python/test_responses_api.py || true
 
 test-stream:
-	python3 streaming_test.py || true
+	python3 tests/python/streaming_test.py || true
 
 clean:
 	rm -f $(APP)
