@@ -232,7 +232,7 @@ Use the `serve` command to launch the server ...
 - **CI**: No duplicate workflows; green on PRs and `main`
 - **Submodules/Deps**: Either no submodules, or properly declared `.gitmodules` with clear bootstrap instructions
 - **Examples**: Usable, minimal friction (requirements file for Python) (DONE)
-- **Versioning**: `goreleaser` config aligns with a single binary `openai-mock-server`
+- **Versioning**: `goreleaser` config aligns with a single binary `openai-mock-server` (DONE)
 
 ### 8) Notes from the Glazed docs (implications)
 - Use `parsedLayers.InitializeStruct(layers.DefaultSlug, &Settings{})` to map flags → settings. Avoid reading Cobra flags directly.

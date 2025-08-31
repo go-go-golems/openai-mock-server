@@ -1,5 +1,5 @@
 version: 2
-project_name: XXX
+project_name: openai-mock-server
 
 before:
   hooks:
@@ -10,8 +10,8 @@ before:
 builds:
   - env:
       - CGO_ENABLED=0
-    main: ./cmd/XXX
-    binary: XXX
+    main: ./cmd/openai-mock-server
+    binary: openai-mock-server
     goos:
       - linux
 # I am not able to test windows at the time
@@ -37,9 +37,9 @@ signs:
     args: [ "--batch", "-u", "{{ .Env.GPG_FINGERPRINT }}", "--output", "${signature}", "--detach-sign", "${artifact}" ]
 
 brews:
-  - name: XXX
-    description: "XXX is a tool"
-    homepage: "https://github.com/go-go-golems/XXX"
+  - name: openai-mock-server
+    description: "OpenAI-compatible mock server for development and testing"
+    homepage: "https://github.com/go-go-golems/openai-mock-server"
     repository:
       owner: go-go-golems
       name: homebrew-go-go-go
@@ -54,7 +54,7 @@ nfpms:
     maintainer: Manuel Odendahl <wesen@ruinwesen.com>
 
     description: |-
-      XXX is a tool
+      OpenAI-compatible mock server for development and testing.
 
     license: MIT
 
@@ -82,8 +82,8 @@ nfpms:
 
 publishers:
   - name: fury.io
-    # by specifying `packages` id here goreleaser will only use this publisher
-    # with artifacts identified by this id
+    env:
+      - FURY_TOKEN={{ .Env.FURY_TOKEN }}
     ids:
       - packages
     dir: "{{ dir .ArtifactPath }}"

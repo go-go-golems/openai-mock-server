@@ -31,6 +31,46 @@ curl -s http://localhost:3117/v1/chat/completions -H 'Content-Type: application/
 - Agents notes: `docs/AGENTS.md`
 - In‑app help: `./openai-mock-server help` or `GET /help`
 
+## Installation
+
+### Using Homebrew
+```bash
+brew tap go-go-golems/go-go-go
+brew install go-go-golems/go-go-go/openai-mock-server
+```
+
+### Using apt-get
+```bash
+echo "deb [trusted=yes] https://apt.fury.io/go-go-golems/ /" | sudo tee /etc/apt/sources.list.d/go-go-golems.list
+sudo apt-get update
+sudo apt-get install openai-mock-server
+```
+
+### Using yum
+```bash
+cat << 'EOF' | sudo tee /etc/yum.repos.d/go-go-golems.repo
+[fury]
+name=Gemfury Private Repo
+baseurl=https://yum.fury.io/go-go-golems/
+enabled=1
+gpgcheck=0
+EOF
+sudo yum install openai-mock-server
+```
+
+### Using go install
+```bash
+go install github.com/go-go-golems/openai-mock-server/cmd/openai-mock-server@latest
+```
+
+### Download binaries
+- From GitHub Releases: https://github.com/go-go-golems/openai-mock-server/releases
+
+### Run from source
+```bash
+go run ./cmd/openai-mock-server --log-level info serve
+```
+
 ## Examples and tests
 - Examples: `examples/python/` and `examples/streaming/`
 - Tests: `tests/python/`
