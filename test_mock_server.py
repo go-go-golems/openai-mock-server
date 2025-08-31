@@ -6,12 +6,12 @@ Test script for the mock OpenAI server using the standard OpenAI Python SDK.
 import openai
 import json
 import time
+import os
 
 def test_mock_server():
     """Test the mock OpenAI server with various scenarios."""
     
     # Configure the OpenAI client to use our local mock server
-    import os
     port = os.environ.get("MOCK_SERVER_PORT", "3117")
     client = openai.OpenAI(
         api_key="mock-api-key",  # Mock API key

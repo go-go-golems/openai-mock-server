@@ -1,4 +1,4 @@
-package main
+package server
 
 import (
     "encoding/json"
@@ -11,6 +11,7 @@ import (
     "time"
 
     "github.com/gorilla/mux"
+    cfg "mock-openai-server/pkg/server/config"
 )
 
 // Responses API structures
@@ -340,7 +341,7 @@ func handleStreamingResponse(w http.ResponseWriter, r *http.Request, req *Respon
     w.Header().Set("Cache-Control", "no-cache")
     w.Header().Set("Connection", "keep-alive")
     origin := "*"
-    if botConfig != nil && botConfig.Server.CORS != "" { origin = botConfig.Server.CORS }
+    if cfg.Current != nil && cfg.Current.Server.CORS != "" { origin = cfg.Current.Server.CORS }
     w.Header().Set("Access-Control-Allow-Origin", origin)
 
 	flusher, ok := w.(http.Flusher)
@@ -362,8 +363,8 @@ func handleStreamingResponse(w http.ResponseWriter, r *http.Request, req *Respon
 	// Stream response word by word
     // Determine delay
     delayMs := 200
-    if botConfig != nil && botConfig.Streaming.ChunkDelayMs != nil {
-        delayMs = *botConfig.Streaming.ChunkDelayMs
+    if cfg.Current != nil && cfg.Current.Streaming.ChunkDelayMs != nil {
+        delayMs = *cfg.Current.Streaming.ChunkDelayMs
     }
     for i, word := range words {
         event := StreamEvent{
@@ -458,8 +459,8 @@ type ResolvedResponse struct {
     Annotations []Annotation
 }
 
-func resolveResponsesContent(req *ResponsesCreateRequest) (*ResolvedResponse, *ErrorOut) {
-    if botConfig == nil {
+func resolveResponsesContent(req *ResponsesCreateRequest) (*ResolvedResponse, *cfg.ErrorOut) {
+    if cfg.Current == nil {
         return nil, nil
     }
     // Build context strings
@@ -485,13 +486,13 @@ func resolveResponsesContent(req *ResponsesCreateRequest) (*ResolvedResponse, *E
     lastUser := strings.TrimSpace(inputStr)
     full := lastUser
 
-    mr := evaluateRules("responses", req.Model, "", lastUser, full)
+    mr := cfg.EvaluateRules("responses", req.Model, "", lastUser, full)
     if mr == nil {
         // Fallback
-        if botConfig.Fallback.Text != "" || botConfig.Fallback.Message.Text != "" {
-            txt := pickText(botConfig.Fallback)
-            ctx := buildTemplateContext(req.Model, lastUser, full)
-            return &ResolvedResponse{Text: renderTemplate(txt, ctx)}, nil
+        if cfg.Current.Fallback.Text != "" || cfg.Current.Fallback.Message.Text != "" {
+            txt := cfg.PickText(cfg.Current.Fallback)
+            ctx := cfg.BuildTemplateContext(req.Model, lastUser, full)
+            return &ResolvedResponse{Text: cfg.RenderTemplate(txt, ctx)}, nil
         }
         return nil, nil
     }
@@ -501,19 +502,19 @@ func resolveResponsesContent(req *ResponsesCreateRequest) (*ResolvedResponse, *E
     }
     // Build response
     res := &ResolvedResponse{}
-    ctx := buildTemplateContext(req.Model, lastUser, full)
+    ctx := cfg.BuildTemplateContext(req.Model, lastUser, full)
 
     // Build tools from registry
     accumulatedText := ""
     var accumulatedAnn []Annotation
     for _, name := range mr.Rule.Respond.UseTools {
-        if !isToolEnabled(name) { continue }
-        if def, ok := getToolDef(name); ok {
+        if !cfg.IsToolEnabled(name) { continue }
+        if def, ok := cfg.GetToolDef(name); ok {
             // tool call
             res.PrefixTools = append(res.PrefixTools, OutputObject{ID: generateToolCallID(), Type: def.CallType, Status: def.Status})
             // default message from tool
             if def.Message != nil {
-                txt := renderTemplate(def.Message.Text, ctx)
+                txt := cfg.RenderTemplate(def.Message.Text, ctx)
                 if txt != "" {
                     if accumulatedText != "" { accumulatedText += "\n" }
                     accumulatedText += txt
@@ -531,11 +532,11 @@ func resolveResponsesContent(req *ResponsesCreateRequest) (*ResolvedResponse, *E
     }
 
     // Message text precedence: rule.message.text > rule.text/choose > accumulated tool text
-    ruleChosen := pickText(mr.Rule.Respond)
+    ruleChosen := cfg.PickText(mr.Rule.Respond)
     if mr.Rule.Respond.Message.Text != "" {
-        res.Text = renderTemplate(mr.Rule.Respond.Message.Text, ctx)
+        res.Text = cfg.RenderTemplate(mr.Rule.Respond.Message.Text, ctx)
     } else if ruleChosen != "" {
-        res.Text = renderTemplate(ruleChosen, ctx)
+        res.Text = cfg.RenderTemplate(ruleChosen, ctx)
     } else {
         res.Text = accumulatedText
     }

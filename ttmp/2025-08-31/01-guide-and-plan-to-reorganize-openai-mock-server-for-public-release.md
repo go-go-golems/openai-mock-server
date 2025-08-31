@@ -206,7 +206,6 @@ Use the `serve` command to launch the server ...
 ├── Makefile
 ├── README.md
 ├── LICENSE
-└── (optional) .envrc               # mention `direnv allow` in README
 ```
 
 ### 6) Concrete reorganization steps (checklist)

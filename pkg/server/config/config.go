@@ -1,4 +1,4 @@
-package main
+package config
 
 import (
     "errors"
@@ -15,7 +15,7 @@ import (
 )
 
 // Global configuration instance
-var botConfig *BotConfig
+var Current *BotConfig
 
 type BotConfig struct {
     Version   int               `yaml:"version"`
@@ -140,17 +140,17 @@ type ToolDef struct {
 func LoadConfigFromEnv() {
     path := os.Getenv("MOCK_SERVER_CONFIG")
     if path == "" {
-        path = filepath.Join("config", "bot.yaml")
+        path = filepath.Join("pkg", "server", "config", "bot.yaml")
     }
     cfg, err := LoadConfig(path)
     if err != nil {
         log.Printf("[config] No config file found (%v). Using built-in default configuration.", err)
-        botConfig = defaultConfig()
-        ensureDefaultTools(botConfig)
+        Current = defaultConfig()
+        ensureDefaultTools(Current)
         return
     }
-    botConfig = cfg
-    ensureDefaultTools(botConfig)
+    Current = cfg
+    ensureDefaultTools(Current)
     log.Printf("[config] Loaded config from %s (version %d)", path, cfg.Version)
 }
 
@@ -206,15 +206,15 @@ func ensureDefaultTools(cfg *BotConfig) {
     }
 }
 
-func isToolEnabled(name string) bool {
-    if botConfig == nil { return false }
-    if len(botConfig.Tools.Enabled) == 0 { return true }
-    return containsString(botConfig.Tools.Enabled, name)
+func IsToolEnabled(name string) bool {
+    if Current == nil { return false }
+    if len(Current.Tools.Enabled) == 0 { return true }
+    return containsString(Current.Tools.Enabled, name)
 }
 
-func getToolDef(name string) (ToolDef, bool) {
-    if botConfig == nil { return ToolDef{}, false }
-    td, ok := botConfig.Tools.Registry[name]
+func GetToolDef(name string) (ToolDef, bool) {
+    if Current == nil { return ToolDef{}, false }
+    td, ok := Current.Tools.Registry[name]
     return td, ok
 }
 
@@ -255,7 +255,7 @@ func defaultConfig() *BotConfig {
 }
 
 // Utility: render a minimal template expansion using {{var}} placeholders
-func renderTemplate(s string, ctx map[string]string) string {
+func RenderTemplate(s string, ctx map[string]string) string {
     out := s
     for k, v := range ctx {
         out = strings.ReplaceAll(out, "{{"+k+"}}", v)
@@ -279,7 +279,7 @@ func getStreamingDelayMs(global StreamingConfig, override *StreamingConfig, defa
     return defaultMs
 }
 
-func pickText(resp RespondWrapper) string {
+func PickText(resp RespondWrapper) string {
     if len(resp.Choose) > 0 {
         total := 0
         for _, c := range resp.Choose { total += c.Weight }
@@ -311,11 +311,11 @@ func isModelMatch(model string, cand []string) bool {
 
 // Evaluate rules and return the first applicable one. If continue=true, it will
 // pick the last matching rule in sequence, allowing overrides.
-func evaluateRules(endpoint string, model string, role string, lastUser string, fullText string) *matchedRule {
-    if botConfig == nil || len(botConfig.Rules) == 0 { return nil }
+func EvaluateRules(endpoint string, model string, role string, lastUser string, fullText string) *matchedRule {
+    if Current == nil || len(Current.Rules) == 0 { return nil }
     var current *matchedRule
-    for i := range botConfig.Rules {
-        r := &botConfig.Rules[i]
+    for i := range Current.Rules {
+        r := &Current.Rules[i]
         if r.Match.Endpoint != "" && r.Match.Endpoint != endpoint {
             continue
         }
@@ -351,7 +351,7 @@ func evaluateRules(endpoint string, model string, role string, lastUser string, 
         }
 
         // matched
-        delayMs := getStreamingDelayMs(botConfig.Streaming, r.StreamOverride, 150)
+        delayMs := getStreamingDelayMs(Current.Streaming, r.StreamOverride, 150)
         current = &matchedRule{Rule: r, Delay: time.Duration(delayMs) * time.Millisecond}
         if !r.Continue { break }
     }
@@ -359,15 +359,15 @@ func evaluateRules(endpoint string, model string, role string, lastUser string, 
 }
 
 // Build template context
-func buildTemplateContext(model, lastUser, fullText string) map[string]string {
+func BuildTemplateContext(model, lastUser, fullText string) map[string]string {
     ctx := map[string]string{
         "model":            model,
         "last_user_message": lastUser,
         "input_text":       fullText,
         "timestamp":        time.Now().Format(time.RFC3339),
     }
-    if botConfig != nil && botConfig.Variables != nil {
-        for k, v := range botConfig.Variables { ctx[k] = v }
+    if Current != nil && Current.Variables != nil {
+        for k, v := range Current.Variables { ctx[k] = v }
     }
     return ctx
 }

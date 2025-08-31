@@ -1,5 +1,5 @@
-APP=mock-openai-server
-MOCK_SERVER_CONFIG ?= config/bot.yaml
+APP=openai-mock-server
+MOCK_SERVER_CONFIG ?= pkg/server/config/bot.yaml
 
 .PHONY: help fmt vet build run test test-chat test-responses test-stream clean docs
 
@@ -8,7 +8,7 @@ help:
 	@echo "  make fmt           - go fmt ./..."
 	@echo "  make vet           - go vet ./..."
 	@echo "  make build         - build $(APP)"
-	@echo "  make run           - run server (uses config/bot.yaml)"
+	@echo "  make run           - run server (uses $(MOCK_SERVER_CONFIG))"
 	@echo "  make docs          - print all embedded docs (help --all)"
 	@echo "  make test          - run all Python tests (server must be running)"
 	@echo "  make test-chat     - run chat SDK tests"
@@ -17,20 +17,20 @@ help:
 	@echo "  make clean         - remove binary"
 
 docs:
-	go run . help --all
+	GOWORK=off go run ./cmd/openai-mock-server help --all
 
 fmt:
-	go fmt ./...
+	GOWORK=off go fmt ./...
 
 vet:
-	go vet ./...
+	GOWORK=off go vet ./...
 
 build:
-	go build -o $(APP) .
+	GOWORK=off go build -o $(APP) ./cmd/openai-mock-server
 
 run:
 	@echo "Starting server with $(MOCK_SERVER_CONFIG)"
-	MOCK_SERVER_CONFIG=$(MOCK_SERVER_CONFIG) go run . serve
+	GOWORK=off MOCK_SERVER_CONFIG=$(MOCK_SERVER_CONFIG) go run ./cmd/openai-mock-server serve
 
 test: test-chat test-responses test-stream
 

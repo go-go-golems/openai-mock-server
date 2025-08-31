@@ -1,4 +1,4 @@
-package main
+package server
 
 import (
 	"encoding/json"
@@ -11,6 +11,7 @@ import (
 
 	"github.com/gorilla/mux"
     docpkg "mock-openai-server/pkg/doc"
+    cfg "mock-openai-server/pkg/server/config"
 )
 
 // Chat Completions API structures (existing)
@@ -73,7 +74,7 @@ type ModelsResponse struct {
 func corsMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		origin := "*"
-		if botConfig != nil && botConfig.Server.CORS != "" { origin = botConfig.Server.CORS }
+		if cfg.Current != nil && cfg.Current.Server.CORS != "" { origin = cfg.Current.Server.CORS }
 		w.Header().Set("Access-Control-Allow-Origin", origin)
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
@@ -183,7 +184,7 @@ func handleStreamingChat(w http.ResponseWriter, r *http.Request, req *ChatComple
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
 	origin := "*"
-	if botConfig != nil && botConfig.Server.CORS != "" { origin = botConfig.Server.CORS }
+	if cfg.Current != nil && cfg.Current.Server.CORS != "" { origin = cfg.Current.Server.CORS }
 	w.Header().Set("Access-Control-Allow-Origin", origin)
 
 	flusher, ok := w.(http.Flusher)
@@ -274,8 +275,8 @@ func countTokens(messages []Message) int {
 // Handle models endpoint
 func handleModels(w http.ResponseWriter, r *http.Request) {
 	var data []Model
-	if botConfig != nil && len(botConfig.Models) > 0 {
-		for _, m := range botConfig.Models {
+	if cfg.Current != nil && len(cfg.Current.Models) > 0 {
+		for _, m := range cfg.Current.Models {
 			data = append(data, Model{ID: m.ID, Object: "model", Created: 1677610602, OwnedBy: m.OwnedBy})
 		}
 	} else {
@@ -307,7 +308,7 @@ func handleHealth(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(health)
 }
 
-func startHttpServer() error {
+func StartHTTPServer() error {
     router := mux.NewRouter()
     router.Use(corsMiddleware)
 
@@ -323,7 +324,7 @@ func startHttpServer() error {
     setupResponsesRoutes(router)
 
     port := "3117"
-    if botConfig != nil && botConfig.Server.Port != "" { port = botConfig.Server.Port }
+    if cfg.Current != nil && cfg.Current.Server.Port != "" { port = cfg.Current.Server.Port }
     log.Printf("🚀 Mock OpenAI Server with Responses API starting on :%s", port)
     log.Println("")
     log.Println("Available APIs:")
@@ -337,7 +338,7 @@ func startHttpServer() error {
 }
 
 // Resolve chat response using configuration rules; falls back to built-in generator.
-func resolveChatResponse(req *ChatCompletionRequest) (string, *ErrorOut, time.Duration) {
+func resolveChatResponse(req *ChatCompletionRequest) (string, *cfg.ErrorOut, time.Duration) {
     // Build input context
     lastUser := ""
     full := ""
@@ -348,12 +349,12 @@ func resolveChatResponse(req *ChatCompletionRequest) (string, *ErrorOut, time.Du
         if m.Content != "" { full += m.Content + "\n" }
     }
     delayMs := 150
-    if botConfig != nil && botConfig.Streaming.ChunkDelayMs != nil {
-        delayMs = *botConfig.Streaming.ChunkDelayMs
+    if cfg.Current != nil && cfg.Current.Streaming.ChunkDelayMs != nil {
+        delayMs = *cfg.Current.Streaming.ChunkDelayMs
     }
     delay := time.Duration(delayMs) * time.Millisecond
 
-    mr := evaluateRules("chat", req.Model, lastRole, lastUser, full)
+    mr := cfg.EvaluateRules("chat", req.Model, lastRole, lastUser, full)
     if mr != nil {
         delay = mr.Delay
         // error path
@@ -361,14 +362,14 @@ func resolveChatResponse(req *ChatCompletionRequest) (string, *ErrorOut, time.Du
             return "", mr.Rule.Respond.Error, delay
         }
         // text path with optional tools aggregation
-        ctx := buildTemplateContext(req.Model, lastUser, full)
+        ctx := cfg.BuildTemplateContext(req.Model, lastUser, full)
 
         // Aggregate tool output texts if any are requested via use_tools
         agg := ""
         for _, name := range mr.Rule.Respond.UseTools {
-            if !isToolEnabled(name) { continue }
-            if def, ok := getToolDef(name); ok && def.Message != nil {
-                t := renderTemplate(def.Message.Text, ctx)
+            if !cfg.IsToolEnabled(name) { continue }
+            if def, ok := cfg.GetToolDef(name); ok && def.Message != nil {
+                t := cfg.RenderTemplate(def.Message.Text, ctx)
                 if t != "" {
                     if agg != "" { agg += "\n" }
                     agg += t
@@ -376,9 +377,9 @@ func resolveChatResponse(req *ChatCompletionRequest) (string, *ErrorOut, time.Du
             }
         }
 
-        txt := pickText(mr.Rule.Respond)
+        txt := cfg.PickText(mr.Rule.Respond)
         if txt != "" {
-            rendered := renderTemplate(txt, ctx)
+            rendered := cfg.RenderTemplate(txt, ctx)
             if agg != "" { rendered = agg + "\n" + rendered }
             return rendered, nil, delay
         }
@@ -388,11 +389,11 @@ func resolveChatResponse(req *ChatCompletionRequest) (string, *ErrorOut, time.Du
     }
 
     // fallback to configured fallback text
-    if botConfig != nil && (botConfig.Fallback.Text != "" || botConfig.Fallback.Message.Text != "") {
-        ctx := buildTemplateContext(req.Model, lastUser, full)
-        txt := pickText(botConfig.Fallback)
+    if cfg.Current != nil && (cfg.Current.Fallback.Text != "" || cfg.Current.Fallback.Message.Text != "") {
+        ctx := cfg.BuildTemplateContext(req.Model, lastUser, full)
+        txt := cfg.PickText(cfg.Current.Fallback)
         if txt != "" {
-            return renderTemplate(txt, ctx), nil, delay
+            return cfg.RenderTemplate(txt, ctx), nil, delay
         }
     }
 
