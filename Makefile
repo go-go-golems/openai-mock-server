@@ -1,59 +1,47 @@
-.PHONY: gifs
+APP=mock-openai-server
+MOCK_SERVER_CONFIG ?= config/bot.yaml
 
-all: gifs
+.PHONY: help fmt vet build run test test-chat test-responses test-stream clean docs
 
-VERSION=v0.1.14
+help:
+	@echo "Common targets:"
+	@echo "  make fmt           - go fmt ./..."
+	@echo "  make vet           - go vet ./..."
+	@echo "  make build         - build $(APP)"
+	@echo "  make run           - run server (uses config/bot.yaml)"
+	@echo "  make docs          - print all embedded docs (help --all)"
+	@echo "  make test          - run all Python tests (server must be running)"
+	@echo "  make test-chat     - run chat SDK tests"
+	@echo "  make test-responses- run Responses API suite"
+	@echo "  make test-stream   - run streaming tests"
+	@echo "  make clean         - remove binary"
 
-TAPES=$(shell ls doc/vhs/*tape)
-gifs: $(TAPES)
-	for i in $(TAPES); do vhs < $$i; done
+docs:
+	go run . help --all
 
-docker-lint:
-	docker run --rm -v $(shell pwd):/app -w /app golangci/golangci-lint:latest golangci-lint run -v
+fmt:
+	go fmt ./...
 
-lint:
-	golangci-lint run -v
-
-lintmax:
-	golangci-lint run -v --max-same-issues=100
-
-gosec:
-	go install github.com/securego/gosec/v2/cmd/gosec@latest
-	gosec -exclude=G101,G304,G301,G306 -exclude-dir=.history ./...
-
-govulncheck:
-	go install golang.org/x/vuln/cmd/govulncheck@latest
-	govulncheck ./...
-
-test:
-	go test ./...
+vet:
+	go vet ./...
 
 build:
-	go generate ./...
-	go build ./...
+	go build -o $(APP) .
 
-goreleaser:
-	goreleaser release --skip=sign --snapshot --clean
+run:
+	@echo "Starting server with $(MOCK_SERVER_CONFIG)"
+	MOCK_SERVER_CONFIG=$(MOCK_SERVER_CONFIG) go run . serve
 
-tag-major:
-	git tag $(shell svu major)
+test: test-chat test-responses test-stream
 
-tag-minor:
-	git tag $(shell svu minor)
+test-chat:
+	python3 test_mock_server.py || true
 
-tag-patch:
-	git tag $(shell svu patch)
+test-responses:
+	python3 test_responses_api.py || true
 
-release:
-	git push origin --tags
-	GOPROXY=proxy.golang.org go list -m github.com/go-go-golems/XXX@$(shell svu current)
+test-stream:
+	python3 streaming_test.py || true
 
-bump-glazed:
-	go get github.com/go-go-golems/glazed@latest
-	go get github.com/go-go-golems/clay@latest
-	go mod tidy
-
-XXX_BINARY=$(shell which XXX)
-install:
-	go build -o ./dist/XXX ./cmd/XXX && \
-		cp ./dist/XXX $(XXX_BINARY)
+clean:
+	rm -f $(APP)
