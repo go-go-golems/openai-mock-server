@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
-    docpkg "mock-openai-server/pkg/doc"
+    docpkg "mock-openai-server/pkg/docs"
     cfg "mock-openai-server/pkg/server/config"
 )
 

@@ -12,7 +12,7 @@
   - `docs/STREAMING.md` (from `STREAMING_DEMO_README.md`)
   - `docs/AGENTS.md` (from `AGENT.md`, `AGENTS.md` removed)
   - `README.md` remains overview entry; `responses_api_research.md` pending move to `docs/research/`.
-- **Docs (embedded)**: `pkg/doc/doc.go`, `pkg/doc/help/*` (help topics for built-in help system)
+- **Docs (embedded)**: [UPDATED] `pkg/docs/doc.go`, `pkg/docs/help/*` (help topics for built-in help system)
 - **Python demos/tests**: multiple `*.py` scripts plus slow streaming text assets
 - **CI/Tooling**: `.github/workflows/*` (includes a duplicate `release.yml` and `release.yaml`), `.golangci.yml`, `.goreleaser.yaml`, `lefthook.yml`, `Makefile`
 - **Modules**: `go.mod`, `go.sum`, `go.work`, `go.work.sum`
@@ -32,7 +32,7 @@ This is derived from `@build-first-command.md` (tutorial) and `@14-writing-help-
 
 - **Command style**: Follow Glazed patterns with Cobra. Commands implement `cmds.BareCommand` (Run) and optionally `cmds.GlazeCommand` (structured output). Use compile-time interface checks per guidelines.
 - **Root command**: Add a canonical `serve` command for the mock server, plus `help` integration from Glazed.
-- **Help system**: Keep Markdown docs in a package (e.g., `pkg/doc/help`) and load them with Go `embed` via an `AddDocToHelpSystem` function.
+- **Help system**: Keep Markdown docs in a package (now `pkg/docs/help`) and load them with Go `embed` via an `AddDocToHelpSystem` function.
 
 #### 4.1 Root command and HelpSystem wiring
 ```go
@@ -165,7 +165,7 @@ Use the `serve` command to launch the server ...
 │   └── openai-mock-server/
 │       └── main.go                  # root with help + command wiring (DONE)
 ├── pkg/
-│   └── doc/
+│   └── docs/
 │       └── help/                   # embedded help sections (frontmatter md)
 │   └── server/
 │       ├── http/
@@ -214,7 +214,7 @@ Use the `serve` command to launch the server ...
 ### 6) Concrete reorganization steps (checklist)
 - [x] Move to single entrypoint under `cmd/openai-mock-server/main.go`; delete `cmd_main.go` and `cmd/XXX/main.go`
 - [ ] Create `ServeCommand` as `BareCommand` and register via Glazed/Cobra
-- [x] Wire Glazed HelpSystem, load embedded docs from `pkg/doc/help`
+- [x] Wire Glazed HelpSystem, load embedded docs from `pkg/docs/help`
 - [x] Split server code into `pkg/server` and `pkg/server/config`
 - [x] Consolidate docs:
   - [x] `RESPONSES_API_README.md` → `docs/RESPONSES_API.md`
@@ -223,15 +223,15 @@ Use the `serve` command to launch the server ...
   - [ ] Keep `README.md` short (overview + quick start + links)
   - [ ] Move research notes to `docs/research/` or `research/`
 - [x] Organize Python assets: `examples/python/` and `tests/python/`
-- [ ] Remove one duplicate workflow file (keep only `release.yml`)
-- [ ] Ensure `make` targets: `build`, `lint`, `test`, `release` (goreleaser) are up-to-date
+- [x] Remove one duplicate workflow file (keep only `release.yml`)
+- [x] Ensure `make` targets: `build`, `lint`, `test` are up-to-date (release: pending goreleaser)
 
 ### 7) Release readiness criteria
 - **Build**: `go build ./...` succeeds (DONE); `golangci-lint run` passes
-- **Docs**: `README.md` concise, with links to `docs/`; in-app `help` shows top-level topics (in progress)
+- **Docs**: `README.md` concise, with links to `docs/` (DONE); in-app `help` shows top-level topics
 - **CI**: No duplicate workflows; green on PRs and `main`
 - **Submodules/Deps**: Either no submodules, or properly declared `.gitmodules` with clear bootstrap instructions
-- **Examples**: Usable, minimal friction (requirements file for Python) (DONE for examples move; requirements TBD)
+- **Examples**: Usable, minimal friction (requirements file for Python) (DONE)
 - **Versioning**: `goreleaser` config aligns with a single binary `openai-mock-server`
 
 ### 8) Notes from the Glazed docs (implications)
