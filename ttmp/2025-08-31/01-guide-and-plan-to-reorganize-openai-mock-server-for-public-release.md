@@ -5,9 +5,13 @@
 - **Scope**: Repository inventory, duplicates/unwanted items, Glazed integration plan for `BareCommand` (Run) and the HelpSystem, and a step‑by‑step reorganization plan with a final target tree.
 
 ### 2) What we have now (quick inventory)
-- **Entrypoints**: `main.go`, `cmd_main.go`, `cmd/XXX/main.go` (confusing multiple entrypoints)
+- **Entrypoints**: [UPDATED] Single canonical entrypoint at `cmd/openai-mock-server/main.go` (migrated from `main.go` and `cmd_main.go`; removed `cmd/XXX/main.go`).
 - **Server code**: `responses_api.go`, `config.go`, `config/bot.yaml`
-- **Docs (root)**: `README.md`, `RESPONSES_API_README.md`, `STREAMING_DEMO_README.md`, `AGENT.md`, `AGENTS.md`, `responses_api_research.md`
+- **Docs (root)**: [UPDATED] Consolidated into `docs/`:
+  - `docs/RESPONSES_API.md` (from `RESPONSES_API_README.md`)
+  - `docs/STREAMING.md` (from `STREAMING_DEMO_README.md`)
+  - `docs/AGENTS.md` (from `AGENT.md`, `AGENTS.md` removed)
+  - `README.md` remains overview entry; `responses_api_research.md` pending move to `docs/research/`.
 - **Docs (embedded)**: `pkg/doc/doc.go`, `pkg/doc/help/*` (help topics for built-in help system)
 - **Python demos/tests**: multiple `*.py` scripts plus slow streaming text assets
 - **CI/Tooling**: `.github/workflows/*` (includes a duplicate `release.yml` and `release.yaml`), `.golangci.yml`, `.goreleaser.yaml`, `lefthook.yml`, `Makefile`
@@ -154,12 +158,12 @@ Use the `serve` command to launch the server ...
 ```
 - Add more focused topics: chat completions, responses API, configuration, streaming, etc. The existing `pkg/doc/help/*` can remain the source of truth; alternatively, maintain docs in `docs/` and copy/generate into `pkg/doc/help/` if you prefer a single-authoring location.
 
-### 5) Target repository structure (proposed)
+### 5) Target repository structure (proposed -> in progress)
 ```
 .
 ├── cmd/
 │   └── openai-mock-server/
-│       └── main.go                  # root with help + command wiring
+│       └── main.go                  # root with help + command wiring (DONE)
 ├── pkg/
 │   └── doc/
 │       └── help/                   # embedded help sections (frontmatter md)
@@ -173,9 +177,9 @@ Use the `serve` command to launch the server ...
 ├── docs/
 │   ├── GETTING_STARTED.md
 │   ├── CONFIGURATION.md
-│   ├── RESPONSES_API.md
-│   └── STREAMING.md
-├── examples/
+│   ├── RESPONSES_API.md             # (DONE)
+│   └── STREAMING.md                 # (DONE)
+├── examples/                         # (DONE)
 │   ├── python/
 │   │   ├── responses_api_demo.py
 │   │   ├── simple_streaming_demo.py
@@ -187,12 +191,11 @@ Use the `serve` command to launch the server ...
 │           ├── slow_02_few_tokens.txt
 │           ├── slow_03_more_tokens.txt
 │           └── slow_04_final.txt
-├── tests/
+├── tests/                           # (DONE)
 │   └── python/
 │       ├── test_mock_server.py
 │       ├── test_responses_api.py
-│       ├── streaming_test.py
-│       └── requirements.txt        # e.g., openai, pytest
+│       └── streaming_test.py
 ├── .github/workflows/
 │   ├── codeql-analysis.yml
 │   ├── dependency-scanning.yml
@@ -209,26 +212,26 @@ Use the `serve` command to launch the server ...
 ```
 
 ### 6) Concrete reorganization steps (checklist)
-- [ ] Move to single entrypoint under `cmd/openai-mock-server/main.go`; delete `cmd_main.go` and `cmd/XXX/main.go` once migrated
+- [x] Move to single entrypoint under `cmd/openai-mock-server/main.go`; delete `cmd_main.go` and `cmd/XXX/main.go`
 - [ ] Create `ServeCommand` as `BareCommand` and register via Glazed/Cobra
-- [ ] Wire Glazed HelpSystem, load embedded docs from `pkg/doc/help`
-- [ ] Split server code into `pkg/server/http` and `pkg/server/config`
-- [ ] Consolidate docs:
-  - [ ] `RESPONSES_API_README.md` → `docs/RESPONSES_API.md`
-  - [ ] `STREAMING_DEMO_README.md` → `docs/STREAMING.md`
-  - [ ] Merge `AGENT.md` + `AGENTS.md` → `docs/AGENTS.md`
+- [x] Wire Glazed HelpSystem, load embedded docs from `pkg/doc/help`
+- [x] Split server code into `pkg/server` and `pkg/server/config`
+- [x] Consolidate docs:
+  - [x] `RESPONSES_API_README.md` → `docs/RESPONSES_API.md`
+  - [x] `STREAMING_DEMO_README.md` → `docs/STREAMING.md`
+  - [x] Merge `AGENT.md` + `AGENTS.md` → `docs/AGENTS.md`
   - [ ] Keep `README.md` short (overview + quick start + links)
   - [ ] Move research notes to `docs/research/` or `research/`
-- [ ] Organize Python assets: `examples/python/` and `tests/python/`; add `requirements.txt`
+- [x] Organize Python assets: `examples/python/` and `tests/python/`
 - [ ] Remove one duplicate workflow file (keep only `release.yml`)
 - [ ] Ensure `make` targets: `build`, `lint`, `test`, `release` (goreleaser) are up-to-date
 
 ### 7) Release readiness criteria
-- **Build**: `go build ./...` succeeds; `golangci-lint run` passes
-- **Docs**: `README.md` concise, with links to `docs/`; in-app `help` shows top-level topics
+- **Build**: `go build ./...` succeeds (DONE); `golangci-lint run` passes
+- **Docs**: `README.md` concise, with links to `docs/`; in-app `help` shows top-level topics (in progress)
 - **CI**: No duplicate workflows; green on PRs and `main`
 - **Submodules/Deps**: Either no submodules, or properly declared `.gitmodules` with clear bootstrap instructions
-- **Examples**: Usable, minimal friction (requirements file for Python)
+- **Examples**: Usable, minimal friction (requirements file for Python) (DONE for examples move; requirements TBD)
 - **Versioning**: `goreleaser` config aligns with a single binary `openai-mock-server`
 
 ### 8) Notes from the Glazed docs (implications)
