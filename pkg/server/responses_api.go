@@ -1,17 +1,17 @@
 package server
 
 import (
-    "encoding/json"
-    "fmt"
-    "log"
-    "math/rand"
-    "net/http"
-    "strconv"
-    "strings"
-    "time"
+	"encoding/json"
+	"fmt"
+	"log"
+	"math/rand"
+	"net/http"
+	"strconv"
+	"strings"
+	"time"
 
-    "github.com/gorilla/mux"
-    cfg "mock-openai-server/pkg/server/config"
+	"github.com/gorilla/mux"
+	cfg "mock-openai-server/pkg/server/config"
 )
 
 // Responses API structures
@@ -95,7 +95,7 @@ func generateToolCallID() string {
 // Mock response generation based on input
 func generateMockResponse(req *ResponsesCreateRequest) string {
 	inputStr := ""
-	
+
 	// Handle different input types
 	switch v := req.Input.(type) {
 	case string:
@@ -114,7 +114,7 @@ func generateMockResponse(req *ResponsesCreateRequest) string {
 	}
 
 	inputLower := strings.ToLower(inputStr)
-	
+
 	// Generate contextual responses
 	if strings.Contains(inputLower, "joke") {
 		jokes := []string{
@@ -125,19 +125,19 @@ func generateMockResponse(req *ResponsesCreateRequest) string {
 		}
 		return jokes[rand.Intn(len(jokes))]
 	}
-	
+
 	if strings.Contains(inputLower, "weather") {
 		return "I'm a mock API, so I can't provide real weather data. But I can tell you it's always sunny in the world of mock responses!"
 	}
-	
+
 	if strings.Contains(inputLower, "news") || strings.Contains(inputLower, "latest") {
 		return "Here are some mock news headlines: 'AI Continues to Advance', 'Mock APIs Prove Useful for Development', 'Developers Love Testing with Fake Data'."
 	}
-	
+
 	if strings.Contains(inputLower, "hello") || strings.Contains(inputLower, "hi") {
 		return "Hello! I'm a mock OpenAI Responses API. How can I help you today?"
 	}
-	
+
 	// Default response
 	return fmt.Sprintf("This is a mock response to your input: '%s'. The Responses API is working correctly!", inputStr)
 }
@@ -146,7 +146,7 @@ func generateMockResponse(req *ResponsesCreateRequest) string {
 func generateWebSearchResults() []OutputObject {
 	toolCallID := generateToolCallID()
 	messageID := generateMessageID()
-	
+
 	return []OutputObject{
 		{
 			ID:     toolCallID,
@@ -170,7 +170,7 @@ func generateWebSearchResults() []OutputObject {
 						{
 							Index: nil,
 							Title: "Language Model Improvements",
-							Type:  "url_citation", 
+							Type:  "url_citation",
 							URL:   "https://example.com/language-models",
 						},
 					},
@@ -184,7 +184,7 @@ func generateWebSearchResults() []OutputObject {
 func generateFileSearchResults() []OutputObject {
 	toolCallID := generateToolCallID()
 	messageID := generateMessageID()
-	
+
 	return []OutputObject{
 		{
 			ID:     toolCallID,
@@ -218,35 +218,37 @@ func generateFileSearchResults() []OutputObject {
 
 // Handle responses creation
 func handleResponsesCreate(w http.ResponseWriter, r *http.Request) {
-    var req ResponsesCreateRequest
-    if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-        http.Error(w, "Invalid JSON", http.StatusBadRequest)
-        return
-    }
+	var req ResponsesCreateRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid JSON", http.StatusBadRequest)
+		return
+	}
 
-    // Check if streaming is requested
-    if req.Stream != nil && *req.Stream {
-        handleStreamingResponse(w, r, &req)
-        return
-    }
+	// Check if streaming is requested
+	if req.Stream != nil && *req.Stream {
+		handleStreamingResponse(w, r, &req)
+		return
+	}
 
-    // Resolve via configuration first
-    resolved, errOut := resolveResponsesContent(&req)
-    if errOut != nil {
-        w.Header().Set("Content-Type", "application/json")
-        w.WriteHeader(errOut.Status)
-        json.NewEncoder(w).Encode(map[string]interface{}{
-            "error": map[string]interface{}{
-                "message": errOut.Message,
-                "code":    errOut.Code,
-            },
-        })
-        return
-    }
+	// Resolve via configuration first
+	resolved, errOut := resolveResponsesContent(&req)
+	if errOut != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(errOut.Status)
+		if err := json.NewEncoder(w).Encode(map[string]interface{}{
+			"error": map[string]interface{}{
+				"message": errOut.Message,
+				"code":    errOut.Code,
+			},
+		}); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+		return
+	}
 
-    // Generate response ID
-    responseID := generateResponseID()
-	
+	// Generate response ID
+	responseID := generateResponseID()
+
 	// Build conversation history
 	var fullContext string
 	if req.PreviousResponseID != "" {
@@ -254,7 +256,7 @@ func handleResponsesCreate(w http.ResponseWriter, r *http.Request) {
 			fullContext = strings.Join(history, "\n") + "\n"
 		}
 	}
-	
+
 	// Add current input to context
 	inputStr := ""
 	switch v := req.Input.(type) {
@@ -273,45 +275,45 @@ func handleResponsesCreate(w http.ResponseWriter, r *http.Request) {
 	}
 	fullContext += inputStr
 
-    // Generate output (config-aware or legacy)
-    var output []OutputObject
-	
+	// Generate output (config-aware or legacy)
+	var output []OutputObject
+
 	// Check for tools
-    if resolved != nil {
-        // Use resolved tools + message
-        output = append(output, resolved.PrefixTools...)
-        messageID := generateMessageID()
-        msg := OutputObject{ID: messageID, Type: "message", Content: []ContentObject{{Type: "text", Text: resolved.Text}}}
-        if len(resolved.Annotations) > 0 {
-            msg.Content[0].Annotations = resolved.Annotations
-        }
-        output = append(output, msg)
-    } else {
-        // Legacy path based on requested tools
-        hasWebSearch := false
-        hasFileSearch := false
-        for _, tool := range req.Tools {
-            if tool.Type == "web_search" || tool.Type == "web_search_preview" {
-                hasWebSearch = true
-            }
-            if tool.Type == "file_search" {
-                hasFileSearch = true
-            }
-        }
-        if hasWebSearch {
-            output = generateWebSearchResults()
-        } else if hasFileSearch {
-            output = generateFileSearchResults()
-        } else {
-            responseText := generateMockResponse(&req)
-            messageID := generateMessageID()
-            output = []OutputObject{{
-                ID:   messageID,
-                Type: "message",
-                Content: []ContentObject{{Type: "text", Text: responseText}},
-            }}
-        }
-    }
+	if resolved != nil {
+		// Use resolved tools + message
+		output = append(output, resolved.PrefixTools...)
+		messageID := generateMessageID()
+		msg := OutputObject{ID: messageID, Type: "message", Content: []ContentObject{{Type: "text", Text: resolved.Text}}}
+		if len(resolved.Annotations) > 0 {
+			msg.Content[0].Annotations = resolved.Annotations
+		}
+		output = append(output, msg)
+	} else {
+		// Legacy path based on requested tools
+		hasWebSearch := false
+		hasFileSearch := false
+		for _, tool := range req.Tools {
+			if tool.Type == "web_search" || tool.Type == "web_search_preview" {
+				hasWebSearch = true
+			}
+			if tool.Type == "file_search" {
+				hasFileSearch = true
+			}
+		}
+		if hasWebSearch {
+			output = generateWebSearchResults()
+		} else if hasFileSearch {
+			output = generateFileSearchResults()
+		} else {
+			responseText := generateMockResponse(&req)
+			messageID := generateMessageID()
+			output = []OutputObject{{
+				ID:      messageID,
+				Type:    "message",
+				Content: []ContentObject{{Type: "text", Text: responseText}},
+			}}
+		}
+	}
 
 	// Create response
 	response := &ResponsesResponse{
@@ -331,18 +333,22 @@ func handleResponsesCreate(w http.ResponseWriter, r *http.Request) {
 	responseStore[responseID] = response
 	conversationHistory[responseID] = append(conversationHistory[req.PreviousResponseID], inputStr, response.Output[len(response.Output)-1].Content[0].Text)
 
-    w.Header().Set("Content-Type", "application/json")
-    json.NewEncoder(w).Encode(response)
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
 }
 
 // Handle streaming responses
 func handleStreamingResponse(w http.ResponseWriter, r *http.Request, req *ResponsesCreateRequest) {
-    w.Header().Set("Content-Type", "text/event-stream")
-    w.Header().Set("Cache-Control", "no-cache")
-    w.Header().Set("Connection", "keep-alive")
-    origin := "*"
-    if cfg.Current != nil && cfg.Current.Server.CORS != "" { origin = cfg.Current.Server.CORS }
-    w.Header().Set("Access-Control-Allow-Origin", origin)
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	origin := "*"
+	if cfg.Current != nil && cfg.Current.Server.CORS != "" {
+		origin = cfg.Current.Server.CORS
+	}
+	w.Header().Set("Access-Control-Allow-Origin", origin)
 
 	flusher, ok := w.(http.Flusher)
 	if !ok {
@@ -350,28 +356,28 @@ func handleStreamingResponse(w http.ResponseWriter, r *http.Request, req *Respon
 		return
 	}
 
-    // Resolve via configuration (fallback to legacy)
-    resolved, _ := resolveResponsesContent(req)
-    responseText := ""
-    if resolved != nil && resolved.Text != "" {
-        responseText = resolved.Text
-    } else {
-        responseText = generateMockResponse(req)
-    }
-    words := strings.Fields(responseText)
+	// Resolve via configuration (fallback to legacy)
+	resolved, _ := resolveResponsesContent(req)
+	responseText := ""
+	if resolved != nil && resolved.Text != "" {
+		responseText = resolved.Text
+	} else {
+		responseText = generateMockResponse(req)
+	}
+	words := strings.Fields(responseText)
 
 	// Stream response word by word
-    // Determine delay
-    delayMs := 200
-    if cfg.Current != nil && cfg.Current.Streaming.ChunkDelayMs != nil {
-        delayMs = *cfg.Current.Streaming.ChunkDelayMs
-    }
-    for i, word := range words {
-        event := StreamEvent{
-            Type:  "response.output_text.delta",
-            Delta: word,
-        }
-		
+	// Determine delay
+	delayMs := 200
+	if cfg.Current != nil && cfg.Current.Streaming.ChunkDelayMs != nil {
+		delayMs = *cfg.Current.Streaming.ChunkDelayMs
+	}
+	for i, word := range words {
+		event := StreamEvent{
+			Type:  "response.output_text.delta",
+			Delta: word,
+		}
+
 		if i < len(words)-1 {
 			event.Delta += " "
 		}
@@ -380,9 +386,9 @@ func handleStreamingResponse(w http.ResponseWriter, r *http.Request, req *Respon
 		fmt.Fprintf(w, "data: %s\n\n", eventData)
 		flusher.Flush()
 
-        // Add delay for demonstration (configurable)
-        time.Sleep(time.Duration(delayMs) * time.Millisecond)
-    }
+		// Add delay for demonstration (configurable)
+		time.Sleep(time.Duration(delayMs) * time.Millisecond)
+	}
 
 	// Send completion event
 	completionEvent := StreamEvent{
@@ -405,7 +411,9 @@ func handleResponsesRetrieve(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
 }
 
 // Handle responses listing
@@ -436,7 +444,9 @@ func handleResponsesList(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(result)
+	if err := json.NewEncoder(w).Encode(result); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
 }
 
 // Setup Responses API routes
@@ -445,7 +455,7 @@ func setupResponsesRoutes(router *mux.Router) {
 	router.HandleFunc("/v1/responses", handleResponsesCreate).Methods("POST")
 	router.HandleFunc("/v1/responses", handleResponsesList).Methods("GET")
 	router.HandleFunc("/v1/responses/{response_id}", handleResponsesRetrieve).Methods("GET")
-	
+
 	log.Println("Responses API routes configured:")
 	log.Println("  POST /v1/responses - Create response")
 	log.Println("  GET /v1/responses - List responses")
@@ -454,99 +464,103 @@ func setupResponsesRoutes(router *mux.Router) {
 
 // Configuration-driven resolver for Responses API
 type ResolvedResponse struct {
-    Text        string
-    PrefixTools []OutputObject
-    Annotations []Annotation
+	Text        string
+	PrefixTools []OutputObject
+	Annotations []Annotation
 }
 
 func resolveResponsesContent(req *ResponsesCreateRequest) (*ResolvedResponse, *cfg.ErrorOut) {
-    if cfg.Current == nil {
-        return nil, nil
-    }
-    // Build context strings
-    inputStr := ""
-    switch v := req.Input.(type) {
-    case string:
-        inputStr = v
-    case []interface{}:
-        for _, msg := range v {
-            if msgMap, ok := msg.(map[string]interface{}); ok {
-                if content, exists := msgMap["content"]; exists {
-                    switch c := content.(type) {
-                    case string:
-                        inputStr += c + " "
-                    case []interface{}:
-                        // ignore non-text for matching
-                        _ = c
-                    }
-                }
-            }
-        }
-    }
-    lastUser := strings.TrimSpace(inputStr)
-    full := lastUser
+	if cfg.Current == nil {
+		return nil, nil
+	}
+	// Build context strings
+	inputStr := ""
+	switch v := req.Input.(type) {
+	case string:
+		inputStr = v
+	case []interface{}:
+		for _, msg := range v {
+			if msgMap, ok := msg.(map[string]interface{}); ok {
+				if content, exists := msgMap["content"]; exists {
+					switch c := content.(type) {
+					case string:
+						inputStr += c + " "
+					case []interface{}:
+						// ignore non-text for matching
+						_ = c
+					}
+				}
+			}
+		}
+	}
+	lastUser := strings.TrimSpace(inputStr)
+	full := lastUser
 
-    mr := cfg.EvaluateRules("responses", req.Model, "", lastUser, full)
-    if mr == nil {
-        // Fallback
-        if cfg.Current.Fallback.Text != "" || cfg.Current.Fallback.Message.Text != "" {
-            txt := cfg.PickText(cfg.Current.Fallback)
-            ctx := cfg.BuildTemplateContext(req.Model, lastUser, full)
-            return &ResolvedResponse{Text: cfg.RenderTemplate(txt, ctx)}, nil
-        }
-        return nil, nil
-    }
-    // error injection
-    if mr.Rule.Respond.Error != nil {
-        return nil, mr.Rule.Respond.Error
-    }
-    // Build response
-    res := &ResolvedResponse{}
-    ctx := cfg.BuildTemplateContext(req.Model, lastUser, full)
+	mr := cfg.EvaluateRules("responses", req.Model, "", lastUser, full)
+	if mr == nil {
+		// Fallback
+		if cfg.Current.Fallback.Text != "" || cfg.Current.Fallback.Message.Text != "" {
+			txt := cfg.PickText(cfg.Current.Fallback)
+			ctx := cfg.BuildTemplateContext(req.Model, lastUser, full)
+			return &ResolvedResponse{Text: cfg.RenderTemplate(txt, ctx)}, nil
+		}
+		return nil, nil
+	}
+	// error injection
+	if mr.Rule.Respond.Error != nil {
+		return nil, mr.Rule.Respond.Error
+	}
+	// Build response
+	res := &ResolvedResponse{}
+	ctx := cfg.BuildTemplateContext(req.Model, lastUser, full)
 
-    // Build tools from registry
-    accumulatedText := ""
-    var accumulatedAnn []Annotation
-    for _, name := range mr.Rule.Respond.UseTools {
-        if !cfg.IsToolEnabled(name) { continue }
-        if def, ok := cfg.GetToolDef(name); ok {
-            // tool call
-            res.PrefixTools = append(res.PrefixTools, OutputObject{ID: generateToolCallID(), Type: def.CallType, Status: def.Status})
-            // default message from tool
-            if def.Message != nil {
-                txt := cfg.RenderTemplate(def.Message.Text, ctx)
-                if txt != "" {
-                    if accumulatedText != "" { accumulatedText += "\n" }
-                    accumulatedText += txt
-                }
-                for _, a := range def.Message.Annotations {
-                    accumulatedAnn = append(accumulatedAnn, Annotation{Index: nil, Title: a.Title, Type: a.Type, URL: a.URL})
-                }
-            }
-        }
-    }
+	// Build tools from registry
+	accumulatedText := ""
+	var accumulatedAnn []Annotation
+	for _, name := range mr.Rule.Respond.UseTools {
+		if !cfg.IsToolEnabled(name) {
+			continue
+		}
+		if def, ok := cfg.GetToolDef(name); ok {
+			// tool call
+			res.PrefixTools = append(res.PrefixTools, OutputObject{ID: generateToolCallID(), Type: def.CallType, Status: def.Status})
+			// default message from tool
+			if def.Message != nil {
+				txt := cfg.RenderTemplate(def.Message.Text, ctx)
+				if txt != "" {
+					if accumulatedText != "" {
+						accumulatedText += "\n"
+					}
+					accumulatedText += txt
+				}
+				for _, a := range def.Message.Annotations {
+					accumulatedAnn = append(accumulatedAnn, Annotation{Index: nil, Title: a.Title, Type: a.Type, URL: a.URL})
+				}
+			}
+		}
+	}
 
-    // Explicit tool calls still supported
-    for _, t := range mr.Rule.Respond.Tools {
-        res.PrefixTools = append(res.PrefixTools, OutputObject{ID: generateToolCallID(), Type: t.Type, Status: t.Status})
-    }
+	// Explicit tool calls still supported
+	for _, t := range mr.Rule.Respond.Tools {
+		res.PrefixTools = append(res.PrefixTools, OutputObject{ID: generateToolCallID(), Type: t.Type, Status: t.Status})
+	}
 
-    // Message text precedence: rule.message.text > rule.text/choose > accumulated tool text
-    ruleChosen := cfg.PickText(mr.Rule.Respond)
-    if mr.Rule.Respond.Message.Text != "" {
-        res.Text = cfg.RenderTemplate(mr.Rule.Respond.Message.Text, ctx)
-    } else if ruleChosen != "" {
-        res.Text = cfg.RenderTemplate(ruleChosen, ctx)
-    } else {
-        res.Text = accumulatedText
-    }
+	// Message text precedence: rule.message.text > rule.text/choose > accumulated tool text
+	ruleChosen := cfg.PickText(mr.Rule.Respond)
+	if mr.Rule.Respond.Message.Text != "" {
+		res.Text = cfg.RenderTemplate(mr.Rule.Respond.Message.Text, ctx)
+	} else if ruleChosen != "" {
+		res.Text = cfg.RenderTemplate(ruleChosen, ctx)
+	} else {
+		res.Text = accumulatedText
+	}
 
-    // Annotations combine tool defaults + rule.message.annotations
-    res.Annotations = append(res.Annotations, accumulatedAnn...)
-    if len(mr.Rule.Respond.Message.Annotations) > 0 {
-        for _, a := range mr.Rule.Respond.Message.Annotations {
-            res.Annotations = append(res.Annotations, Annotation{Index: nil, Title: a.Title, Type: a.Type, URL: a.URL})
-        }
-    }
-    return res, nil
+	// Annotations combine tool defaults + rule.message.annotations
+	res.Annotations = append(res.Annotations, accumulatedAnn...)
+	if len(mr.Rule.Respond.Message.Annotations) > 0 {
+		for _, a := range mr.Rule.Respond.Message.Annotations {
+			res.Annotations = append(res.Annotations, Annotation{Index: nil, Title: a.Title, Type: a.Type, URL: a.URL})
+		}
+	}
+	return res, nil
 }

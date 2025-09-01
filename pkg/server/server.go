@@ -10,8 +10,8 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
-    docpkg "mock-openai-server/pkg/docs"
-    cfg "mock-openai-server/pkg/server/config"
+	docpkg "mock-openai-server/pkg/docs"
+	cfg "mock-openai-server/pkg/server/config"
 )
 
 // Chat Completions API structures (existing)
@@ -74,7 +74,9 @@ type ModelsResponse struct {
 func corsMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		origin := "*"
-		if cfg.Current != nil && cfg.Current.Server.CORS != "" { origin = cfg.Current.Server.CORS }
+		if cfg.Current != nil && cfg.Current.Server.CORS != "" {
+			origin = cfg.Current.Server.CORS
+		}
 		w.Header().Set("Access-Control-Allow-Origin", origin)
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
@@ -138,20 +140,22 @@ func handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-    // Generate response (config-aware)
-    responseText, errOut, _ := resolveChatResponse(&req)
-    if errOut != nil {
-        w.Header().Set("Content-Type", "application/json")
-        w.WriteHeader(errOut.Status)
-        json.NewEncoder(w).Encode(map[string]interface{}{
-            "error": map[string]interface{}{
-                "message": errOut.Message,
-                "code":    errOut.Code,
-            },
-        })
-        return
-    }
-	
+	// Generate response (config-aware)
+	responseText, errOut, _ := resolveChatResponse(&req)
+	if errOut != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(errOut.Status)
+		if err := json.NewEncoder(w).Encode(map[string]interface{}{
+			"error": map[string]interface{}{
+				"message": errOut.Message,
+				"code":    errOut.Code,
+			},
+		}); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+		return
+	}
+
 	response := ChatCompletionResponse{
 		ID:      fmt.Sprintf("chatcmpl-%d", time.Now().Unix()),
 		Object:  "chat.completion",
@@ -175,7 +179,9 @@ func handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
 }
 
 // Handle streaming chat completions
@@ -184,7 +190,9 @@ func handleStreamingChat(w http.ResponseWriter, r *http.Request, req *ChatComple
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
 	origin := "*"
-	if cfg.Current != nil && cfg.Current.Server.CORS != "" { origin = cfg.Current.Server.CORS }
+	if cfg.Current != nil && cfg.Current.Server.CORS != "" {
+		origin = cfg.Current.Server.CORS
+	}
 	w.Header().Set("Access-Control-Allow-Origin", origin)
 
 	flusher, ok := w.(http.Flusher)
@@ -289,7 +297,9 @@ func handleModels(w http.ResponseWriter, r *http.Request) {
 	models := ModelsResponse{Object: "list", Data: data}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(models)
+	if err := json.NewEncoder(w).Encode(models); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
 }
 
 // Health check endpoint
@@ -300,103 +310,117 @@ func handleHealth(w http.ResponseWriter, r *http.Request) {
 		"apis": map[string]string{
 			"chat_completions": "available",
 			"responses":        "available",
-			"models":          "available",
+			"models":           "available",
 		},
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(health)
+	if err := json.NewEncoder(w).Encode(health); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
 }
 
 func StartHTTPServer() error {
-    router := mux.NewRouter()
-    router.Use(corsMiddleware)
+	router := mux.NewRouter()
+	router.Use(corsMiddleware)
 
-    // Chat Completions API
-    router.HandleFunc("/v1/chat/completions", handleChatCompletions).Methods("POST")
-    router.HandleFunc("/v1/models", handleModels).Methods("GET")
-    router.HandleFunc("/health", handleHealth).Methods("GET")
+	// Chat Completions API
+	router.HandleFunc("/v1/chat/completions", handleChatCompletions).Methods("POST")
+	router.HandleFunc("/v1/models", handleModels).Methods("GET")
+	router.HandleFunc("/health", handleHealth).Methods("GET")
 
-    // Help endpoints
-    docpkg.RegisterHelpRoutes(router)
+	// Help endpoints
+	docpkg.RegisterHelpRoutes(router)
 
-    // Responses API
-    setupResponsesRoutes(router)
+	// Responses API
+	setupResponsesRoutes(router)
 
-    port := "3117"
-    if cfg.Current != nil && cfg.Current.Server.Port != "" { port = cfg.Current.Server.Port }
-    log.Printf("🚀 Mock OpenAI Server with Responses API starting on :%s", port)
-    log.Println("")
-    log.Println("Available APIs:")
-    log.Println("📝 Chat Completions API:\n  POST /v1/chat/completions")
-    log.Println("🔄 Responses API:\n  POST /v1/responses\n  GET /v1/responses\n  GET /v1/responses/{response_id}")
-    log.Println("🔧 Utility endpoints:\n  GET /v1/models\n  GET /health\n  GET /help, /help/{slug}")
-    log.Println("")
-    log.Println("Features:\n✅ Streaming support for both APIs\n✅ Built-in tools (web_search, file_search)\n✅ Stateful conversations\n✅ Conversation forking\n✅ CORS enabled")
+	port := "3117"
+	if cfg.Current != nil && cfg.Current.Server.Port != "" {
+		port = cfg.Current.Server.Port
+	}
+	log.Printf("🚀 Mock OpenAI Server with Responses API starting on :%s", port)
+	log.Println("")
+	log.Println("Available APIs:")
+	log.Println("📝 Chat Completions API:\n  POST /v1/chat/completions")
+	log.Println("🔄 Responses API:\n  POST /v1/responses\n  GET /v1/responses\n  GET /v1/responses/{response_id}")
+	log.Println("🔧 Utility endpoints:\n  GET /v1/models\n  GET /health\n  GET /help, /help/{slug}")
+	log.Println("")
+	log.Println("Features:\n✅ Streaming support for both APIs\n✅ Built-in tools (web_search, file_search)\n✅ Stateful conversations\n✅ Conversation forking\n✅ CORS enabled")
 
-    return http.ListenAndServe(":"+port, router)
+	return http.ListenAndServe(":"+port, router)
 }
 
 // Resolve chat response using configuration rules; falls back to built-in generator.
 func resolveChatResponse(req *ChatCompletionRequest) (string, *cfg.ErrorOut, time.Duration) {
-    // Build input context
-    lastUser := ""
-    full := ""
-    lastRole := ""
-    for _, m := range req.Messages {
-        if m.Role == "user" { lastUser = m.Content }
-        lastRole = m.Role
-        if m.Content != "" { full += m.Content + "\n" }
-    }
-    delayMs := 150
-    if cfg.Current != nil && cfg.Current.Streaming.ChunkDelayMs != nil {
-        delayMs = *cfg.Current.Streaming.ChunkDelayMs
-    }
-    delay := time.Duration(delayMs) * time.Millisecond
+	// Build input context
+	lastUser := ""
+	full := ""
+	lastRole := ""
+	for _, m := range req.Messages {
+		if m.Role == "user" {
+			lastUser = m.Content
+		}
+		lastRole = m.Role
+		if m.Content != "" {
+			full += m.Content + "\n"
+		}
+	}
+	delayMs := 150
+	if cfg.Current != nil && cfg.Current.Streaming.ChunkDelayMs != nil {
+		delayMs = *cfg.Current.Streaming.ChunkDelayMs
+	}
+	delay := time.Duration(delayMs) * time.Millisecond
 
-    mr := cfg.EvaluateRules("chat", req.Model, lastRole, lastUser, full)
-    if mr != nil {
-        delay = mr.Delay
-        // error path
-        if mr.Rule.Respond.Error != nil {
-            return "", mr.Rule.Respond.Error, delay
-        }
-        // text path with optional tools aggregation
-        ctx := cfg.BuildTemplateContext(req.Model, lastUser, full)
+	mr := cfg.EvaluateRules("chat", req.Model, lastRole, lastUser, full)
+	if mr != nil {
+		delay = mr.Delay
+		// error path
+		if mr.Rule.Respond.Error != nil {
+			return "", mr.Rule.Respond.Error, delay
+		}
+		// text path with optional tools aggregation
+		ctx := cfg.BuildTemplateContext(req.Model, lastUser, full)
 
-        // Aggregate tool output texts if any are requested via use_tools
-        agg := ""
-        for _, name := range mr.Rule.Respond.UseTools {
-            if !cfg.IsToolEnabled(name) { continue }
-            if def, ok := cfg.GetToolDef(name); ok && def.Message != nil {
-                t := cfg.RenderTemplate(def.Message.Text, ctx)
-                if t != "" {
-                    if agg != "" { agg += "\n" }
-                    agg += t
-                }
-            }
-        }
+		// Aggregate tool output texts if any are requested via use_tools
+		agg := ""
+		for _, name := range mr.Rule.Respond.UseTools {
+			if !cfg.IsToolEnabled(name) {
+				continue
+			}
+			if def, ok := cfg.GetToolDef(name); ok && def.Message != nil {
+				t := cfg.RenderTemplate(def.Message.Text, ctx)
+				if t != "" {
+					if agg != "" {
+						agg += "\n"
+					}
+					agg += t
+				}
+			}
+		}
 
-        txt := cfg.PickText(mr.Rule.Respond)
-        if txt != "" {
-            rendered := cfg.RenderTemplate(txt, ctx)
-            if agg != "" { rendered = agg + "\n" + rendered }
-            return rendered, nil, delay
-        }
-        if agg != "" {
-            return agg, nil, delay
-        }
-    }
+		txt := cfg.PickText(mr.Rule.Respond)
+		if txt != "" {
+			rendered := cfg.RenderTemplate(txt, ctx)
+			if agg != "" {
+				rendered = agg + "\n" + rendered
+			}
+			return rendered, nil, delay
+		}
+		if agg != "" {
+			return agg, nil, delay
+		}
+	}
 
-    // fallback to configured fallback text
-    if cfg.Current != nil && (cfg.Current.Fallback.Text != "" || cfg.Current.Fallback.Message.Text != "") {
-        ctx := cfg.BuildTemplateContext(req.Model, lastUser, full)
-        txt := cfg.PickText(cfg.Current.Fallback)
-        if txt != "" {
-            return cfg.RenderTemplate(txt, ctx), nil, delay
-        }
-    }
+	// fallback to configured fallback text
+	if cfg.Current != nil && (cfg.Current.Fallback.Text != "" || cfg.Current.Fallback.Message.Text != "") {
+		ctx := cfg.BuildTemplateContext(req.Model, lastUser, full)
+		txt := cfg.PickText(cfg.Current.Fallback)
+		if txt != "" {
+			return cfg.RenderTemplate(txt, ctx), nil, delay
+		}
+	}
 
-    // built-in logic
-    return generateChatResponse(req.Messages), nil, delay
+	// built-in logic
+	return generateChatResponse(req.Messages), nil, delay
 }
