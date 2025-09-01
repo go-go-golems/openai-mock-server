@@ -1,7 +1,7 @@
 APP=openai-mock-server
 MOCK_SERVER_CONFIG ?= pkg/server/config/bot.yaml
 
-.PHONY: help fmt vet build run test test-chat test-responses test-stream clean docs lint lintmax docker-lint gosec govulncheck
+.PHONY: help fmt vet build run test test-chat test-responses test-stream clean docs lint lintmax docker-lint gosec govulncheck tag-major tag-minor tag-patch release goreleaser
 
 help:
 	@echo "Common targets:"
@@ -19,6 +19,10 @@ help:
 	@echo "  make docker-lint   - run golangci-lint in docker"
 	@echo "  make gosec         - run gosec static analysis"
 	@echo "  make govulncheck   - run govulncheck vulnerability scan"
+	@echo "  make tag-patch     - create a patch tag with svu"
+	@echo "  make tag-minor     - create a minor tag with svu"
+	@echo "  make tag-major     - create a major tag with svu"
+	@echo "  make release       - push tags (requires remote)"
 
 docs:
 	go run ./cmd/openai-mock-server help --all
@@ -45,6 +49,22 @@ gosec:
 govulncheck:
 	go install golang.org/x/vuln/cmd/govulncheck@latest
 	govulncheck ./...
+
+tag-major:
+	git tag $(shell svu major)
+
+tag-minor:
+	git tag $(shell svu minor)
+
+tag-patch:
+	git tag $(shell svu patch)
+
+release:
+	git push --tags
+	- GOPROXY=proxy.golang.org go list -m github.com/go-go-golems/openai-mock-server@$(shell svu current)
+
+goreleaser:
+	goreleaser release --skip=sign --snapshot --clean
 
 build:
 	go build -o $(APP) ./cmd/openai-mock-server
