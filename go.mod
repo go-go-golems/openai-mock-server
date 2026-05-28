@@ -5,12 +5,12 @@ go 1.25.0
 require github.com/gorilla/mux v1.8.1
 
 require (
+	github.com/go-go-golems/logcopter v0.1.0
 	github.com/spf13/cobra v1.9.1
 	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (
-	github.com/go-go-golems/logcopter v0.1.0 // indirect
 	github.com/itchyny/gojq v0.12.12 // indirect
 	github.com/itchyny/timefmt-go v0.1.5 // indirect
 	golang.org/x/mod v0.36.0 // indirect
