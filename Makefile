@@ -66,3 +66,11 @@ test-stream:
 
 clean:
 	rm -f $(APP)
+
+.PHONY: logcopter-generate
+logcopter-generate:
+	GOWORK=off go tool logcopter-gen -include-main -var zlog -area-prefix go-go-golems.openai-mock-server -strip-prefix github.com/go-go-golems/openai-mock-server ./cmd/... ./pkg/...
+
+.PHONY: logcopter-check
+logcopter-check:
+	GOWORK=off go tool logcopter-gen -include-main -var zlog -area-prefix go-go-golems.openai-mock-server -strip-prefix github.com/go-go-golems/openai-mock-server -check ./cmd/... ./pkg/...
