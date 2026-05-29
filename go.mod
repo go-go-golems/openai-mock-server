@@ -1,6 +1,6 @@
 module mock-openai-server
 
-go 1.25.0
+go 1.26.3
 
 require github.com/gorilla/mux v1.8.1
 
