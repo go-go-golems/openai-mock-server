@@ -91,5 +91,9 @@ glazed-lint-build:
 		GOBIN=$(dir $(GLAZED_LINT_BIN)) go install $(GLAZED_LINT_PKG); \
 	fi
 
+# The server config package is legacy runtime/environment plumbing rather than
+# Glazed CLI flag wiring; allow it while keeping the rollout gate enabled.
+GLAZED_LINT_ALLOW_PATHS ?= pkg/server/config/
+
 glazed-lint: glazed-lint-build
-	GOWORK=off go vet -vettool=$(GLAZED_LINT_BIN) ./cmd/... ./pkg/...
+	GOWORK=off go vet -vettool=$(GLAZED_LINT_BIN) -glazedclilint.allow-paths=$(GLAZED_LINT_ALLOW_PATHS) ./cmd/... ./pkg/...
