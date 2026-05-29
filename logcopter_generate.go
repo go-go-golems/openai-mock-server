@@ -1,0 +1,3 @@
+package openai_mock_server
+
+//go:generate go tool logcopter-gen -include-main -var zlog -area-prefix go-go-golems.openai-mock-server -strip-prefix mock-openai-server ./cmd/... ./pkg/...
